@@ -24,26 +24,38 @@
 #include <string.h>
 #include <stdio.h>
 #include <vector>
+#include <omp.h>
 
 
-size_t searchForWord(const byte* data, size_t dataSize, const byte* word, byte wordSize, bool breakOnFirst)
+size_t searchForWord(const byte* data, size_t dataSize, const byte* word, byte wordSize)
+{
+	size_t occurences = 0;
+	const byte* r = data;
+	const byte* last = data + dataSize;
+	while (r != 0)
+	{
+		if (r = (const byte*)memchr(r, *word, last - r))
+		{
+			if(!memcmp(r, word, wordSize))
+				occurences++;
+			r++;
+		}
+	}
+	return occurences;
+}
+
+bool doesWordOccur(const byte* data, size_t dataSize, const byte* word, byte wordSize)
 {
 	size_t occurences = 0;
 	const size_t redDataSize = dataSize - wordSize;
-
-	for (size_t i = 0; i <= redDataSize; i++)
+	for (long long i = 0; i <= (long long)redDataSize; i++)
 	{
 		const byte* pData = data + i;
 		if (memcmp(pData, word, wordSize) == 0)
-		{
-			if (breakOnFirst)
-				return 1;
-			occurences++;
-			i += wordSize - 1;
-		}
+			return true;
 	}
 
-	return occurences;
+	return false;
 }
 
 bool searchForSmallestNonExistingWord(const byte* data, size_t dataSize, Word& wordOut)
@@ -67,8 +79,7 @@ bool searchForSmallestNonExistingWord(const byte* data, size_t dataSize, Word& w
 				if (word[i - 1] == 0)
 					word[i]++;
 
-			size_t nOccurences = searchForWord(data, dataSize, word, wordSize, true);
-			if (nOccurences == 0)
+			if (!doesWordOccur(data, dataSize, word, wordSize))
 			{
 				wordOut = Word(word, wordSize, 0);
 				return true;
@@ -111,7 +122,7 @@ std::vector<Word> searchForLargestExistingWords(const byte* data, size_t dataSiz
 		{
 			const byte* searchStart = word;
 			size_t searchLength = dataSize - (word - data);
-			size_t nOccurences = searchForWord(searchStart, searchLength, word, wordSize, false);
+			size_t nOccurences = searchForWord(searchStart, searchLength, word, wordSize);
 			if (nOccurences > 1 && !contains(words, word, wordSize))
 				words.push_back(Word(word, wordSize, nOccurences));
 		}
@@ -303,7 +314,7 @@ void recursive_block_decompress(byte*& data, size_t& dataSize)
 	pData += sizeof(size_t);
 
 	// calc new size
-	size_t occurences = searchForWord(pData, rawDataSize, idWord, idSize, false);
+	size_t occurences = searchForWord(pData, rawDataSize, idWord, idSize);
 	size_t newDataSize = rawDataSize + occurences*(rplSize - idSize);
 	byte* newData = new byte[newDataSize];
 	byte* pNewData = newData;
