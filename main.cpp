@@ -45,6 +45,9 @@ void execCompression(FILE* in, FILE* out, size_t maxBlockSize)
 {
 	printf("compressing\n");
 	size_t fileSize = getFileSize(in);
+	if (maxBlockSize == 0)
+		maxBlockSize = fileSize;
+
 	size_t nBlocks = (size_t)ceil((double)fileSize / maxBlockSize);
 
 	for (size_t iBlock = 0; iBlock < nBlocks; iBlock++)
@@ -108,14 +111,27 @@ void execDecompression(FILE* in, FILE* out)
 	printf("finished\n");
 }
 
+void displayHelp()
+{
+	printf("useage:\n\
+[-rf|-e] [infile] outfile [blocksize]\n\
+compress with infile outfile; if no blocksize specified,\n\
+ it is assumed to be equal to the file size\n\
+-rf\tcreates a random file, no infile parameter necessary\n\
+-e\textracts the infile into outfile\n");
+}
+
 void main(int argc, char** argv)
 {
 	bool decompressing = false;
 	argv++;
 	argc--;
 
-	if (argc < 0)
+	if (argc < 2)
+	{
+		displayHelp();
 		return;
+	}
 
 	if (*argv && strcmp(*argv, "-rf") == 0)
 	{
@@ -200,19 +216,14 @@ void main(int argc, char** argv)
 	if (!decompressing)
 	{
 		// block size
-		if (argc <= 0)
-		{
-			printf("no block size specified\n");
-			return;
-		}
-		long maxBlockSize = atoi(*argv);
+		long maxBlockSize = 0;
+		if (argc > 0)
+			maxBlockSize = atoi(*argv);
 
 		execCompression(in_file, out_file, maxBlockSize);
 	}
 	else
-	{
 		execDecompression(in_file, out_file);
-	}
 
 	fclose(in_file);
 	fclose(out_file);
