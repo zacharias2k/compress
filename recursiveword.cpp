@@ -26,8 +26,10 @@
 #include <vector>
 #include <omp.h>
 
+#define SEARCH_PARTS 16
 
-size_t searchForWord(const byte* data, size_t dataSize, const byte* word, byte wordSize)
+
+size_t _searchForWord_s(const byte* data, size_t dataSize, const byte* word, byte wordSize)
 {
 	size_t occurences = 0;
 	const byte* r = data;
@@ -43,6 +45,25 @@ size_t searchForWord(const byte* data, size_t dataSize, const byte* word, byte w
 	}
 	return occurences;
 }
+
+size_t _searchForWord_p(const byte* data, size_t dataSize, const byte* word, byte wordSize)
+{
+	// a vector is even faster then reduction
+	size_t countVector[SEARCH_PARTS];
+	const size_t partSize = dataSize / SEARCH_PARTS;
+	// split for omp
+#pragma omp parallel for
+	for (int i = 0; i < SEARCH_PARTS; i++)
+		countVector[i] = _searchForWord_s(data + partSize*i, partSize, word, wordSize);
+
+	size_t count = 0;
+	for (int i = 0; i < SEARCH_PARTS; i++)
+		count += countVector[i];
+
+	return count;
+}
+
+#define searchForWord _searchForWord_p
 
 bool doesWordOccur(const byte* data, size_t dataSize, const byte* word, byte wordSize)
 {
