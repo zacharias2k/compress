@@ -26,44 +26,28 @@
 #include <vector>
 #include <omp.h>
 
-#define SEARCH_PARTS 16
+//#define _DEBUG
 
-
-size_t _searchForWord_s(const byte* data, size_t dataSize, const byte* word, byte wordSize)
+size_t searchForWord(const byte* data, size_t dataSize, const byte* word, byte wordSize)
 {
 	size_t occurences = 0;
 	const byte* r = data;
-	const byte* last = data + dataSize;
-	while (r != 0)
+	const byte* last = data + dataSize - wordSize;
+	while (r != 0 && r <= last)
 	{
 		if (r = (const byte*)memchr(r, *word, last - r))
 		{
-			if(!memcmp(r, word, wordSize))
+			if (!memcmp(r, word, wordSize))
+			{
 				occurences++;
-			r++;
+				r += wordSize;
+			}
+			else
+				r++;
 		}
 	}
 	return occurences;
 }
-
-size_t _searchForWord_p(const byte* data, size_t dataSize, const byte* word, byte wordSize)
-{
-	// a vector is even faster then reduction
-	size_t countVector[SEARCH_PARTS];
-	const size_t partSize = dataSize / SEARCH_PARTS;
-	// split for omp
-#pragma omp parallel for
-	for (int i = 0; i < SEARCH_PARTS; i++)
-		countVector[i] = _searchForWord_s(data + partSize*i, partSize, word, wordSize);
-
-	size_t count = 0;
-	for (int i = 0; i < SEARCH_PARTS; i++)
-		count += countVector[i];
-
-	return count;
-}
-
-#define searchForWord _searchForWord_p
 
 bool doesWordOccur(const byte* data, size_t dataSize, const byte* word, byte wordSize)
 {
@@ -89,7 +73,6 @@ bool searchForSmallestNonExistingWord(const byte* data, size_t dataSize, Word& w
 #ifdef _DEBUG
 		printf("checking word size %d\n", wordSize);
 #endif
-
 		memset(word, 0, sizeof(byte)*wordSize);
 
 		for (size_t i = 0; i < pow((float)256, (size_t)wordSize); i++)
@@ -107,48 +90,45 @@ bool searchForSmallestNonExistingWord(const byte* data, size_t dataSize, Word& w
 			}
 		}
 	}
-
 	return false;
 }
 
 bool contains(const std::vector<Word>& vec, const byte* word, byte wordSize)
 {
 	for (const Word& w : vec)
-	{
-		if (w.wordSize == wordSize &&
-			memcmp(w.word, word, wordSize) == 0)
+		if (w.wordSize == wordSize && *w.word == *word && memcmp(w.word, word, wordSize) == 0)
 			return true;
-	}
+
 	return false;
 }
 
-std::vector<Word> searchForLargestExistingWords(const byte* data, size_t dataSize)
+std::vector<Word> searchForLargestExistingWords(const byte* data, const size_t dataSize)
 {
 	std::vector<Word> words;
+	words.reserve(1000);
 	long maxWordSize = 128;
 
-	if (dataSize < maxWordSize)
-	{
-		// make it a power of 2
-		double ll = log2(dataSize);
-		maxWordSize = (long)pow(2, (long)floor(ll));
-	}
+	if (dataSize < maxWordSize)	// make it a power of 2
+		maxWordSize = (long)pow(2, (long)floor(log2(dataSize)));
 
 	for (byte wordSize = (byte)maxWordSize; wordSize > 2; wordSize /= 2)
 	{
 #ifdef _DEBUG
 		printf("checking word size %d\n", wordSize);
 #endif
-		for (const byte* word = data; word <= data + dataSize - wordSize; word++)
+		const size_t end = dataSize - wordSize;
+
+		for (size_t i = 0; i < end; i++)
 		{
-			const byte* searchStart = word;
-			size_t searchLength = dataSize - (word - data);
-			size_t nOccurences = searchForWord(searchStart, searchLength, word, wordSize);
-			if (nOccurences > 1 && !contains(words, word, wordSize))
+			const byte* word = data + i;
+			const size_t searchLength = dataSize - i;
+			size_t nOccurences;
+
+			nOccurences = searchForWord(word, searchLength, word, wordSize);
+			if (nOccurences > 1 &&!contains(words, word, wordSize))
 				words.push_back(Word(word, wordSize, nOccurences));
 		}
 	}
-
 	return words;
 }
 
@@ -206,10 +186,11 @@ byte* create_compressed_block(byte* data, size_t dataSize, const Word& idWord, c
 	// safe pointer for later block size dumping
 	byte* pBlockSize = pTmpData;
 	pTmpData += sizeof(size_t);
-
+	int n = 0;
 	// replace
 	byte* pData = data;
-	while ((size_t)(pData - data) < dataSize)
+	const byte* last = data + dataSize - rplWord.wordSize;
+	while (pData < last)
 	{
 		if (memcmp(pData, rplWord.word, rplWord.wordSize) == 0)
 		{
@@ -217,6 +198,7 @@ byte* create_compressed_block(byte* data, size_t dataSize, const Word& idWord, c
 			memcpy(pTmpData, idWord.word, idWord.wordSize);
 			pTmpData += idWord.wordSize;
 			pData += rplWord.wordSize;
+			n++;
 		}
 		else
 		{
@@ -228,7 +210,6 @@ byte* create_compressed_block(byte* data, size_t dataSize, const Word& idWord, c
 	}
 	size_t blockSize = pTmpData - pBlockSize - sizeof(size_t);
 	memcpy(pBlockSize, &blockSize, sizeof(size_t));
-
 	compressedSize = pTmpData - tmpData;
 
 	return tmpData;
@@ -278,10 +259,14 @@ void _recursive_block_compress(byte*& data, size_t& dataSize)
 
 	if (foundId)
 	{
-		//printf("found id with len %d\n", idWord.wordSize);
 		size_t compressedSize = 0;
 		byte* compressedData = create_compressed_block(data, dataSize, idWord, rplWord, compressedSize);
+
+#ifdef _DEBUG
+		printf("compression ratio: %d : %d = %g\n", compressedSize, dataSize, (float)compressedSize / dataSize);
+#else
 		printf("compression ratio: %g\n", (float)compressedSize / dataSize);
+#endif
 
 		delete[] data;
 		data = compressedData;
