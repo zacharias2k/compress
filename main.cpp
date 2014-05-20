@@ -48,9 +48,10 @@ void execCompression(FILE* in, FILE* out, size_t maxBlockSize)
 	if (maxBlockSize == 0)
 		maxBlockSize = fileSize;
 
-	size_t nBlocks = (size_t)ceil((double)fileSize / maxBlockSize);
+	long long nBlocks = (size_t)ceil((double)fileSize / maxBlockSize);
 
-	for (size_t iBlock = 0; iBlock < nBlocks; iBlock++)
+#pragma omp parallel for
+	for (long long iBlock = 0; iBlock < nBlocks; iBlock++)
 	{
 		size_t sizeLeft = fileSize - iBlock * maxBlockSize;
 		size_t curBlockSize = min(sizeLeft, maxBlockSize);
