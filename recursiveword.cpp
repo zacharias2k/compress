@@ -27,6 +27,8 @@
 #include <omp.h>
 
 //#define _DEBUG
+#define MAX_ID_SIZE 8
+#define MIN_WORD_SIZE 2
 
 size_t searchForWord(const byte* data, size_t dataSize, const byte* word, byte wordSize)
 {
@@ -68,7 +70,7 @@ bool searchForSmallestNonExistingWord(const byte* data, size_t dataSize, Word& w
 	byte word[MAX_WORD_SIZE];
 
 	// larger than 4 is less efficient than index based
-	for (byte wordSize = 1; wordSize <= 4; wordSize *= 2)
+	for (byte wordSize = 1; wordSize <= MAX_ID_SIZE; wordSize *= 2)
 	{
 #ifdef _DEBUG
 		printf("checking word size %d\n", wordSize);
@@ -111,7 +113,7 @@ std::vector<Word> searchForLargestExistingWords(const byte* data, const size_t d
 	if (dataSize < maxWordSize)	// make it a power of 2
 		maxWordSize = (long)pow(2, (long)floor(log2(dataSize)));
 
-	for (byte wordSize = (byte)maxWordSize; wordSize > 2; wordSize /= 2)
+	for (byte wordSize = (byte)maxWordSize; wordSize >= MIN_WORD_SIZE; wordSize /= 2)
 	{
 #ifdef _DEBUG
 		printf("checking word size %d\n", wordSize);
@@ -275,6 +277,8 @@ void _recursive_block_compress(byte*& data, size_t& dataSize)
 		// recursive call
 		_recursive_block_compress(data, dataSize);
 	}
+	else if (rplWord.wordSize > MAX_ID_SIZE)
+		printf("hint: indexed compression bears %d bytes of safing\n", replaceSafings(rplWord, MAX_ID_SIZE));
 }
 
 void recursive_block_compress(byte*& data, size_t& dataSize)
